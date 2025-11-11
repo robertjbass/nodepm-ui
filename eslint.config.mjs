@@ -20,6 +20,7 @@ export default [
         __dirname: 'readonly',
         NodeJS: 'readonly',
         setTimeout: 'readonly',
+        clearTimeout: 'readonly',
         clearInterval: 'readonly',
       },
     },

@@ -27,6 +27,7 @@ export class NodeProcessManager {
   private table: blessed.Widgets.ListTableElement
   private statusBar: blessed.Widgets.BoxElement
   private helpBar: blessed.Widgets.BoxElement
+  private toastBar: blessed.Widgets.BoxElement
   private processes: ProcessInfo[] = []
   private displayedProcesses: ProcessInfo[] = []
   private refreshInterval: NodeJS.Timeout | null = null
@@ -41,6 +42,8 @@ export class NodeProcessManager {
   private filterMode: boolean = false
   private filterQuery: string = ''
   private filterBox: blessed.Widgets.BoxElement | null = null
+  private toastTimeout: NodeJS.Timeout | null = null
+  private activeToast: boolean = false
 
   constructor(showAllProcesses: boolean = false) {
     this.showAllProcesses = showAllProcesses
@@ -83,11 +86,26 @@ export class NodeProcessManager {
       warnings: false,
     })
 
-    this.table = blessed.listtable({
+    // Toast notification bar at the top
+    this.toastBar = blessed.box({
       top: 0,
       left: 0,
       width: '100%',
-      height: '100%-3',
+      height: 1,
+      content: this.showAllProcesses ? 'All Processes' : 'Node Processes',
+      style: {
+        fg: 'white',
+        bg: 'black',
+        bold: true,
+      },
+      tags: true,
+    })
+
+    this.table = blessed.listtable({
+      top: 1, // Start below toast bar
+      left: 0,
+      width: '100%',
+      height: '100%-4', // Adjust for toast bar
       border: {
         type: 'line',
       },
@@ -137,7 +155,7 @@ export class NodeProcessManager {
       width: '100%',
       height: 2,
       content:
-        ' {bold}↑↓{/bold}:Nav {bold}Enter{/bold}:Kill {bold}?{/bold}:Explain {bold}/{/bold}:Ask {bold}f{/bold}:Filter {bold}h{/bold}:Help {bold}r{/bold}:Refresh {bold}c{/bold}:CPU {bold}m{/bold}:Mem {bold}q{/bold}:Quit',
+        ' {bold}↑↓{/bold}:Nav {bold}Enter{/bold}:Kill {bold}Cmd+C{/bold}:Copy {bold}?{/bold}:Explain {bold}/{/bold}:Ask {bold}Cmd+F{/bold}:Filter {bold}Cmd+R{/bold}:Refresh {bold}s{/bold}:Sort {bold}q{/bold}:Quit',
       style: {
         fg: 'black',
         bg: 'cyan',
@@ -147,6 +165,7 @@ export class NodeProcessManager {
       clickable: true,
     })
 
+    this.screen.append(this.toastBar)
     this.screen.append(this.table)
     this.screen.append(this.statusBar)
     this.screen.append(this.helpBar)
@@ -161,10 +180,21 @@ export class NodeProcessManager {
   }
 
   private setupKeyBindings() {
-    this.screen.key(['C-c', 'C-d'], () => {
+    const isMac = process.platform === 'darwin'
+
+    // Exit: Ctrl+D always, Ctrl+C only on non-Mac (Mac uses Ctrl+C for copy)
+    this.screen.key(['C-d'], () => {
       this.cleanup()
       process.exit(0)
     })
+
+    if (!isMac) {
+      // On Windows/Linux, Ctrl+C exits (standard terminal behavior)
+      this.screen.key(['C-c'], () => {
+        this.cleanup()
+        process.exit(0)
+      })
+    }
 
     this.screen.key(['q', 'escape'], () => {
       if (this.modalStack.length === 0) {
@@ -173,8 +203,27 @@ export class NodeProcessManager {
       }
     })
 
-    this.screen.key(['r'], async () => {
-      await this.refreshProcessList()
+    // Copy to clipboard:
+    // - Mac: Cmd+C (M-c)
+    // - Windows/Linux: Ctrl+Shift+C (C-S-c)
+    this.screen.key(['M-c', 'C-S-c'], async () => {
+      if (this.modalStack.length === 0) {
+        await this.copySelectedProcessToClipboard()
+      }
+    })
+
+    // Refresh: Cmd+R on Mac, Ctrl+R on Windows/Linux
+    this.screen.key(['C-r', 'M-r'], async () => {
+      if (this.modalStack.length === 0 && !this.filterMode) {
+        await this.refreshProcessList()
+      }
+    })
+
+    // Filter: Cmd+F on Mac, Ctrl+F on Windows/Linux
+    this.screen.key(['C-f', 'M-f'], () => {
+      if (this.modalStack.length === 0 && !this.filterMode) {
+        this.enterFilterMode()
+      }
     })
 
     this.screen.key(['enter', 'k'], () => {
@@ -204,6 +253,14 @@ export class NodeProcessManager {
       }
     })
 
+    // Sort cycling with 's' key
+    this.screen.key(['s'], () => {
+      if (this.modalStack.length === 0) {
+        this.cycleSort()
+      }
+    })
+
+    // Keep c and m for quick CPU/Memory sorting
     this.screen.key(['c'], () => {
       if (this.modalStack.length === 0) {
         this.toggleSort('cpu')
@@ -231,12 +288,6 @@ export class NodeProcessManager {
     this.screen.key(['h'], () => {
       if (this.modalStack.length === 0) {
         this.showHelpModal()
-      }
-    })
-
-    this.screen.key(['f'], () => {
-      if (this.modalStack.length === 0 && !this.filterMode) {
-        this.enterFilterMode()
       }
     })
 
@@ -722,6 +773,7 @@ Please provide a helpful, concise answer based on the process list above. If ide
 
   private async explainProcessWithAI(process: ProcessInfo) {
     try {
+      this.showToast('🤖 Asking AI, please wait...', 'info', 0)
       this.statusBar.setContent(
         '{yellow-fg}🤖 Asking AI about this process...{/yellow-fg}'
       )
@@ -810,12 +862,14 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
         overlay.destroy()
         this.helpBar.show()
         this.statusBar.show()
+        this.hideToast()
         this.screen.render()
       }
 
       this.screen.key(['escape', 'q', 'enter', 'space'], closeHandler)
       explainBox.focus()
 
+      this.hideToast()
       this.statusBar.setContent(
         '{green-fg}✓ AI explanation retrieved{/green-fg}'
       )
@@ -825,6 +879,7 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
       if (error instanceof Error) {
         errorMsg = error.message
       }
+      this.showToast(`✗ AI failed: ${errorMsg}`, 'error', 3000)
       this.statusBar.setContent(
         `{red-fg}✗ AI explain failed: ${errorMsg}{/red-fg}`
       )
@@ -840,6 +895,175 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
       this.sortOrder = 'desc'
     }
     this.refreshProcessList()
+  }
+
+  private cycleSort() {
+    const sortStates: Array<{ column: SortColumn; order: SortOrder }> = [
+      { column: 'cpu', order: 'desc' },
+      { column: 'cpu', order: 'asc' },
+      { column: 'memory', order: 'desc' },
+      { column: 'memory', order: 'asc' },
+      { column: 'name', order: 'asc' },
+      { column: 'name', order: 'desc' },
+      { column: 'none', order: 'desc' },
+    ]
+
+    const currentIndex = sortStates.findIndex(
+      (s) => s.column === this.sortColumn && s.order === this.sortOrder
+    )
+
+    const nextIndex = (currentIndex + 1) % sortStates.length
+    const nextState = sortStates[nextIndex]
+
+    this.sortColumn = nextState.column
+    this.sortOrder = nextState.order
+
+    this.refreshProcessList()
+  }
+
+  /**
+   * Show a toast notification
+   * @param message - The message to display
+   * @param type - 'success', 'error', 'warning', or 'info'
+   * @param duration - Duration in milliseconds (0 for persistent)
+   */
+  private showToast(
+    message: string,
+    type: 'success' | 'error' | 'warning' | 'info' = 'info',
+    duration: number = 2000
+  ) {
+    // Clear any existing toast timeout
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout)
+      this.toastTimeout = null
+    }
+
+    this.activeToast = true
+
+    // Set color based on type
+    let fg: string, bg: string
+    switch (type) {
+      case 'success':
+        fg = 'black'
+        bg = 'green'
+        break
+      case 'error':
+        fg = 'white'
+        bg = 'red'
+        break
+      case 'warning':
+        fg = 'black'
+        bg = 'yellow'
+        break
+      case 'info':
+      default:
+        fg = 'black'
+        bg = 'cyan'
+        break
+    }
+
+    this.toastBar.setContent(` ${message}`)
+    this.toastBar.style.fg = fg
+    this.toastBar.style.bg = bg
+    this.toastBar.style.bold = true
+    this.screen.render()
+
+    // Auto-hide after duration if not persistent
+    if (duration > 0) {
+      this.toastTimeout = setTimeout(() => {
+        this.hideToast()
+      }, duration)
+    }
+  }
+
+  /**
+   * Hide the toast notification and restore default header
+   */
+  private hideToast() {
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout)
+      this.toastTimeout = null
+    }
+
+    this.activeToast = false
+
+    const defaultText = this.showAllProcesses ? 'All Processes' : 'Node Processes'
+    this.toastBar.setContent(defaultText)
+    this.toastBar.style.fg = 'white'
+    this.toastBar.style.bg = 'black'
+    this.toastBar.style.bold = true
+    this.screen.render()
+  }
+
+  /**
+   * Copy text to clipboard using native system commands
+   */
+  private async copyToClipboard(text: string): Promise<void> {
+    const platform = process.platform
+
+    let command: string
+    if (platform === 'darwin') {
+      // macOS
+      command = 'pbcopy'
+    } else if (platform === 'win32') {
+      // Windows
+      command = 'clip'
+    } else {
+      // Linux - try xclip first, fall back to xsel
+      try {
+        await execAsync('which xclip')
+        command = 'xclip -selection clipboard'
+      } catch {
+        try {
+          await execAsync('which xsel')
+          command = 'xsel --clipboard --input'
+        } catch {
+          throw new Error(
+            'No clipboard utility found. Please install xclip or xsel.'
+          )
+        }
+      }
+    }
+
+    return new Promise((resolve, reject) => {
+      const proc = exec(command, (error) => {
+        if (error) {
+          reject(error)
+        } else {
+          resolve()
+        }
+      })
+
+      if (proc.stdin) {
+        proc.stdin.write(text)
+        proc.stdin.end()
+      } else {
+        reject(new Error('Failed to access clipboard process stdin'))
+      }
+    })
+  }
+
+  private async copySelectedProcessToClipboard() {
+    const selectedRow = (this.table as any).selected - 1
+
+    if (selectedRow < 0 || selectedRow >= this.displayedProcesses.length) {
+      this.showToast('⚠ No process selected', 'warning', 2000)
+      return
+    }
+
+    const p = this.displayedProcesses[selectedRow]
+    const clipboardText = `PID: ${p.pid} | Name: ${p.name} | Command: ${p.cmd}`
+
+    try {
+      await this.copyToClipboard(clipboardText)
+      this.showToast('✓ Copied process to clipboard', 'success', 2000)
+    } catch (error) {
+      this.showToast(
+        `✗ Failed to copy: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'error',
+        3000
+      )
+    }
   }
 
   private enterFilterMode() {
@@ -1041,8 +1265,19 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
       this.displayedProcesses = sortedProcesses
 
       const currentPid = process.pid
+
+      // Generate table headers with sort indicators
+      const arrow = this.sortOrder === 'asc' ? '↑' : '↓'
+      const headers = [
+        this.sortColumn === 'pid' ? `PID ${arrow}` : 'PID',
+        this.sortColumn === 'name' ? `Name ${arrow}` : 'Name',
+        this.sortColumn === 'cpu' ? `CPU % ${arrow}` : 'CPU %',
+        this.sortColumn === 'memory' ? `Memory ${arrow}` : 'Memory',
+        'Command',
+      ]
+
       const tableData = [
-        ['PID', 'Name', 'CPU %', 'Memory', 'Command'],
+        headers,
         ...sortedProcesses.map((p) => {
           const cpuPercent = p.cpu || 0
           const cpuColor =
@@ -1087,9 +1322,11 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
           this.sortColumn === 'cpu'
             ? 'CPU'
             : this.sortColumn === 'memory'
-              ? 'Memory'
-              : this.sortColumn
-        sortIndicator = ` | Sort: {bold}${columnName} ${arrow}{/bold}`
+              ? 'Mem'
+              : this.sortColumn === 'name'
+                ? 'Name'
+                : this.sortColumn
+        sortIndicator = ` | {cyan-fg}Sort:{/cyan-fg} {bold}${columnName}${arrow}{/bold}`
       }
 
       let filterIndicator = ''
@@ -1213,6 +1450,12 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval)
       this.refreshInterval = null
+    }
+
+    // Clear any active toast timeout
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout)
+      this.toastTimeout = null
     }
 
     // Restore original console functions
