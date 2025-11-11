@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "nodepm": "dist/index.js"
+    "nodepm-ui": "dist/index.js"
   },
   "files": [
     "dist",
