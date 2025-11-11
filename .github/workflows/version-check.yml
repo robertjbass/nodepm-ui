@@ -1,0 +1,84 @@
+name: Version Check
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get PR branch version
+        id: pr-version
+        run: |
+          PR_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$PR_VERSION" >> $GITHUB_OUTPUT
+          echo "PR branch version: $PR_VERSION"
+
+      - name: Checkout main branch
+        run: |
+          git fetch origin main
+          git checkout origin/main
+
+      - name: Get main branch version
+        id: main-version
+        run: |
+          MAIN_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$MAIN_VERSION" >> $GITHUB_OUTPUT
+          echo "Main branch version: $MAIN_VERSION"
+
+      - name: Compare versions
+        run: |
+          PR_VERSION="${{ steps.pr-version.outputs.version }}"
+          MAIN_VERSION="${{ steps.main-version.outputs.version }}"
+
+          echo "Comparing versions:"
+          echo "  Main: $MAIN_VERSION"
+          echo "  PR:   $PR_VERSION"
+
+          # Use node to compare semver versions
+          node -e "
+            const semver = require('semver');
+            const mainVersion = '$MAIN_VERSION';
+            const prVersion = '$PR_VERSION';
+
+            if (!semver.valid(mainVersion)) {
+              console.error('❌ Invalid version in main branch: ' + mainVersion);
+              process.exit(1);
+            }
+
+            if (!semver.valid(prVersion)) {
+              console.error('❌ Invalid version in PR branch: ' + prVersion);
+              process.exit(1);
+            }
+
+            if (semver.gt(prVersion, mainVersion)) {
+              console.log('✅ Version has been bumped from ' + mainVersion + ' to ' + prVersion);
+              process.exit(0);
+            } else if (semver.eq(prVersion, mainVersion)) {
+              console.error('❌ Version has not been incremented!');
+              console.error('   Current version: ' + mainVersion);
+              console.error('   PR version:      ' + prVersion);
+              console.error('');
+              console.error('Please bump the version in package.json before merging to main.');
+              process.exit(1);
+            } else {
+              console.error('❌ PR version is lower than main branch version!');
+              console.error('   Main version: ' + mainVersion);
+              console.error('   PR version:   ' + prVersion);
+              process.exit(1);
+            }
+          "

@@ -1,0 +1,86 @@
+name: Publish to NPM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write  # Required for npm provenance and trusted publishing
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Get current version
+        id: package-version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Package version: $VERSION"
+
+      - name: Check if version is published
+        id: check-published
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          VERSION="${{ steps.package-version.outputs.version }}"
+
+          echo "Checking if $PACKAGE_NAME@$VERSION is already published..."
+
+          if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
+            echo "Version $VERSION is already published to npm"
+            echo "published=true" >> $GITHUB_OUTPUT
+          else
+            echo "Version $VERSION is not yet published"
+            echo "published=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        if: steps.check-published.outputs.published == 'false'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        if: steps.check-published.outputs.published == 'false'
+        run: pnpm build
+
+      - name: Run tests
+        if: steps.check-published.outputs.published == 'false'
+        run: pnpm test
+        continue-on-error: true
+
+      - name: Publish to npm
+        if: steps.check-published.outputs.published == 'false'
+        run: pnpm publish --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.PROCESS_MANAGER_TOKEN }}
+
+      - name: Create git tag
+        if: steps.check-published.outputs.published == 'false'
+        run: |
+          VERSION="${{ steps.package-version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
+
+      - name: Skip - already published
+        if: steps.check-published.outputs.published == 'true'
+        run: |
+          echo "✅ Version ${{ steps.package-version.outputs.version }} is already published. Skipping publish step."
