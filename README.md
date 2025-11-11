@@ -45,6 +45,32 @@ bun add -g nodepm
 nodepm
 ```
 
+## Usage
+
+```bash
+nodepm [options]
+```
+
+### Options
+
+- `--all` - Show all processes (not just Node.js processes)
+- `--help`, `-h` - Show help message
+
+By default, nodepm only displays Node.js processes. Use the `--all` flag to view all running processes on your system.
+
+### Examples
+
+```bash
+# Show only Node.js processes (default)
+nodepm
+
+# Show all processes
+nodepm --all
+
+# Show help
+nodepm --help
+```
+
 ## Keyboard Shortcuts
 
 ### Navigation
