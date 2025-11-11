@@ -1,6 +1,6 @@
-# nodepm
+# nodepm-ui
 
-[![npm version](https://badge.fury.io/js/nodepm.svg)](https://www.npmjs.com/package/nodepm)
+[![npm version](https://badge.fury.io/js/nodepm-ui.svg)](https://www.npmjs.com/package/nodepm-ui)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
 
 A beautiful terminal UI for managing and monitoring Node.js processes. Find and kill rogue processes, analyze resource usage, and get AI-powered insights.
@@ -22,35 +22,35 @@ Run directly without installation using your preferred package manager:
 
 ```bash
 # Using pnpm
-pnpx nodepm
+pnpx nodepm-ui
 
 # Using npm
-npx nodepm
+npx nodepm-ui
 
 # Using bun
-bunx nodepm
+bunx nodepm-ui
 ```
 
 Or install globally:
 
 ```bash
 # Using pnpm
-pnpm add -g nodepm
+pnpm add -g nodepm-ui
 
 # Using npm
-npm install -g nodepm
+npm install -g nodepm-ui
 
 # Using bun
-bun add -g nodepm
+bun add -g nodepm-ui
 
 # Then run
-nodepm
+nodepm-ui
 ```
 
 ## Usage
 
 ```bash
-nodepm [options]
+nodepm-ui [options]
 ```
 
 ### Options
@@ -58,24 +58,24 @@ nodepm [options]
 - `--all` - Show all processes (not just Node.js processes)
 - `--help`, `-h` - Show help message
 
-By default, nodepm only displays Node.js processes. Use the `--all` flag to view all running processes on your system.
+By default, nodepm-ui only displays Node.js processes. Use the `--all` flag to view all running processes on your system.
 
 ### Examples
 
 ```bash
 # Show only Node.js processes (default)
-nodepm
+nodepm-ui
 
 # Show all processes
-nodepm --all
+nodepm-ui --all
 
 # Show help
-nodepm --help
+nodepm-ui --help
 ```
 
 ## Keyboard Shortcuts
 
-This section provides a comprehensive reference for all keyboard shortcuts in nodepm.
+This section provides a comprehensive reference for all keyboard shortcuts in nodepm-ui.
 
 ### Running the Key Bindings Checker
 
@@ -262,8 +262,8 @@ Press **/** to ask AI questions like:
 
 On first use of AI features, you'll be prompted to enter your OpenAI API key. The key is saved in your user config directory:
 
-- **Linux/Mac**: `~/.config/nodepm/config.json`
-- **Windows**: `%APPDATA%\nodepm\config.json`
+- **Linux/Mac**: `~/.config/nodepm-ui/config.json`
+- **Windows**: `%APPDATA%\nodepm-ui\config.json`
 
 You can also set the `OPENAI_API_KEY` environment variable, which takes priority over the config file:
 
@@ -303,11 +303,11 @@ Bob Bass
 
 ## Contributing
 
-Issues and pull requests welcome at [github.com/robertjbass/nodepm](https://github.com/robertjbass/nodepm)
+Issues and pull requests welcome at [github.com/robertjbass/nodepm-ui](https://github.com/robertjbass/nodepm-ui)
 
 ### Outstanding TODOs
 
-For contributors looking to help improve nodepm, check out [TODO.md](TODO.md) for a list of planned features and improvements, including:
+For contributors looking to help improve nodepm-ui, check out [TODO.md](TODO.md) for a list of planned features and improvements, including:
 
 - UI improvements (themes, chat interface, settings menu)
 - Feature additions (key remapping, checkboxes, API customization)

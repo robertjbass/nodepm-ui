@@ -1,5 +1,5 @@
 {
-  "name": "nodepm",
+  "name": "nodepm-ui",
   "version": "0.7.0",
   "description": "Terminal UI for managing your machine's processes with a focus on Node.js processes",
   "main": "dist/index.js",
@@ -40,12 +40,12 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/robertjbass/nodepm.git"
+    "url": "git+https://github.com/robertjbass/nodepm-ui.git"
   },
   "bugs": {
-    "url": "https://github.com/robertjbass/nodepm/issues"
+    "url": "https://github.com/robertjbass/nodepm-ui/issues"
   },
-  "homepage": "https://github.com/robertjbass/nodepm#readme",
+  "homepage": "https://github.com/robertjbass/nodepm-ui#readme",
   "packageManager": "pnpm@10.6.5",
   "engines": {
     "node": ">=18.0.0"
