@@ -1,10 +1,16 @@
 #!/usr/bin/env tsx
 
-import { KEY_BINDINGS, checkForConflicts, getAllKeys } from '../src/key-bindings'
+import {
+  KEY_BINDINGS,
+  checkForConflicts,
+  getAllKeys,
+} from '../src/key-bindings'
 
-console.log('\n╔══════════════════════════════════════════════════════════════╗')
-console.log('║           nodepm - Keyboard Bindings Configuration          ║')
-console.log('╚══════════════════════════════════════════════════════════════╝\n')
+console.log('')
+console.log('╔══════════════════════════════════════════════════════════════╗')
+console.log('║           nodepm - Keyboard Bindings Configuration           ║')
+console.log('╚══════════════════════════════════════════════════════════════╝')
+console.log('')
 
 // Group bindings by action type
 const byAction = new Map<string, Array<{ name: string; binding: any }>>()
@@ -46,8 +52,11 @@ actionOrder.forEach((action) => {
     if (binding.requiresNoModal) modifiers.push('no modal')
     if (binding.requiresNoFilter) modifiers.push('not filtering')
 
-    const modifierText = modifiers.length > 0 ? ` [${modifiers.join(', ')}]` : ''
-    console.log(`  ${binding.label.padEnd(20)} → ${binding.description}${modifierText}`)
+    const modifierText =
+      modifiers.length > 0 ? ` [${modifiers.join(', ')}]` : ''
+    console.log(
+      `  ${binding.label.padEnd(20)} → ${binding.description}${modifierText}`
+    )
     console.log(`    Keys: ${binding.keys.join(', ')}`)
   })
 })
@@ -64,7 +73,7 @@ if (conflicts.length > 0) {
       const binding = KEY_BINDINGS[bindingName as keyof typeof KEY_BINDINGS]
       console.log(`     - ${bindingName} (${binding.action})`)
     })
-    console.log()
+    console.log('')
   })
 } else {
   console.log('✅ No key conflicts detected!')
@@ -79,6 +88,10 @@ console.log(`  Unique actions: ${byAction.size}`)
 console.log('\n\n💡 Notes:\n')
 console.log('  • C- prefix = Ctrl key (all platforms)')
 console.log('  • M- prefix = Meta/Cmd key (Mac) or Alt key (Windows/Linux)')
-console.log('  • Some keys have context requirements (no modal, not filtering, etc.)')
-console.log('  • Multiple bindings can map to the same action (e.g., k and enter both kill)')
+console.log(
+  '  • Some keys have context requirements (no modal, not filtering, etc.)'
+)
+console.log(
+  '  • Multiple bindings can map to the same action (e.g., k and enter both kill)'
+)
 console.log('\n')
