@@ -21,9 +21,6 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install semver
-        run: npm install -g semver
-
       - name: Get PR branch version
         id: pr-version
         run: |
@@ -52,26 +49,54 @@ jobs:
           echo "  Main: $MAIN_VERSION"
           echo "  PR:   $PR_VERSION"
 
-          # Use node to compare semver versions
+          # Simple semver comparison without external dependencies
           node -e "
-            const semver = require('semver');
+            function parseSemver(version) {
+              const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
+              if (!match) return null;
+              return {
+                major: parseInt(match[1], 10),
+                minor: parseInt(match[2], 10),
+                patch: parseInt(match[3], 10),
+                prerelease: match[4] || ''
+              };
+            }
+
+            function compareSemver(v1, v2) {
+              if (v1.major !== v2.major) return v1.major - v2.major;
+              if (v1.minor !== v2.minor) return v1.minor - v2.minor;
+              if (v1.patch !== v2.patch) return v1.patch - v2.patch;
+
+              // If one has prerelease and other doesn't, stable is greater
+              if (v1.prerelease && !v2.prerelease) return -1;
+              if (!v1.prerelease && v2.prerelease) return 1;
+
+              // Both have prereleases or neither does
+              return v1.prerelease.localeCompare(v2.prerelease);
+            }
+
             const mainVersion = '$MAIN_VERSION';
             const prVersion = '$PR_VERSION';
 
-            if (!semver.valid(mainVersion)) {
+            const mainParsed = parseSemver(mainVersion);
+            const prParsed = parseSemver(prVersion);
+
+            if (!mainParsed) {
               console.error('❌ Invalid version in main branch: ' + mainVersion);
               process.exit(1);
             }
 
-            if (!semver.valid(prVersion)) {
+            if (!prParsed) {
               console.error('❌ Invalid version in PR branch: ' + prVersion);
               process.exit(1);
             }
 
-            if (semver.gt(prVersion, mainVersion)) {
+            const comparison = compareSemver(prParsed, mainParsed);
+
+            if (comparison > 0) {
               console.log('✅ Version has been bumped from ' + mainVersion + ' to ' + prVersion);
               process.exit(0);
-            } else if (semver.eq(prVersion, mainVersion)) {
+            } else if (comparison === 0) {
               console.error('❌ Version has not been incremented!');
               console.error('   Current version: ' + mainVersion);
               console.error('   PR version:      ' + prVersion);
