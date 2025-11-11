@@ -21,6 +21,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install semver
+        run: npm install -g semver
+
       - name: Get PR branch version
         id: pr-version
         run: |
