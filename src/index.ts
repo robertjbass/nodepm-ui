@@ -142,7 +142,7 @@ class NodeProcessManager {
       width: '100%',
       height: 2,
       content:
-        ' {bold}↑↓{/bold}:Nav {bold}Enter{/bold}:Kill {bold}?{/bold}:Explain {bold}/{/bold}:Ask {bold}r{/bold}:Refresh {bold}c{/bold}:SortCPU {bold}m{/bold}:SortMem {bold}q{/bold}:Quit',
+        ' {bold}↑↓{/bold}:Nav {bold}Enter{/bold}:Kill {bold}?{/bold}:Explain {bold}/{/bold}:Ask {bold}h{/bold}:Help {bold}r{/bold}:Refresh {bold}c{/bold}:CPU {bold}m{/bold}:Mem {bold}q{/bold}:Quit',
       style: {
         fg: 'black',
         bg: 'cyan',
@@ -225,6 +225,11 @@ class NodeProcessManager {
     // AI Ask custom question
     this.screen.key(['/'], () => {
       this.askCustomQuestion()
+    })
+
+    // Help modal
+    this.screen.key(['h'], () => {
+      this.showHelpModal()
     })
 
     // Mouse support for selection
@@ -337,6 +342,78 @@ class NodeProcessManager {
         `{red-fg}✗ Failed to save API key: ${error instanceof Error ? error.message : 'Unknown error'}{/red-fg}`
       )
     }
+    this.screen.render()
+  }
+
+  private showHelpModal() {
+    const modalId = 'help-modal'
+    this.modalStack.push(modalId)
+
+    // Hide help bar and status bar while modal is open
+    this.helpBar.hide()
+    this.statusBar.hide()
+
+    // Read README.md content
+    let readmeContent = ''
+    try {
+      const readmePath = path.join(__dirname, '..', 'README.md')
+      readmeContent = fs.readFileSync(readmePath, 'utf-8')
+    } catch (error) {
+      readmeContent =
+        'README.md not found.\n\nUse the arrow keys to navigate the process list.\nPress Enter to kill a selected process.\nPress ? to explain a process with AI.\nPress / to ask AI a custom question.\nPress r to refresh the list.\nPress c to sort by CPU.\nPress m to sort by Memory.\nPress q to quit.'
+    }
+
+    const helpBox = blessed.box({
+      parent: this.screen,
+      top: 'center',
+      left: 'center',
+      width: '90%',
+      height: '80%',
+      border: {
+        type: 'line',
+      },
+      style: {
+        border: {
+          fg: 'cyan',
+        },
+        bg: 'black',
+      },
+      label: ' {bold}{cyan-fg}Help - README{/cyan-fg}{/bold} ',
+      tags: true,
+      keys: true,
+      vi: true,
+      scrollable: true,
+      alwaysScroll: true,
+      input: true,
+      keyable: true,
+      scrollbar: {
+        ch: ' ',
+        style: {
+          bg: 'cyan',
+        },
+      },
+      content:
+        readmeContent +
+        '\n\n{gray-fg}Press ESC, Q, H, Enter, or Space to close... Use ↑↓ or j/k to scroll{/gray-fg}',
+    })
+
+    const closeHandler = () => {
+      this.modalStack.pop()
+      this.screen.unkey('escape', closeHandler)
+      this.screen.unkey('q', closeHandler)
+      this.screen.unkey('h', closeHandler)
+      this.screen.unkey('enter', closeHandler)
+      this.screen.unkey('space', closeHandler)
+      helpBox.destroy()
+      this.helpBar.show()
+      this.statusBar.show()
+      this.screen.render()
+    }
+
+    // Use screen-level key handler to ensure it's captured
+    this.screen.key(['escape', 'q', 'h', 'enter', 'space'], closeHandler)
+    helpBox.focus()
+
     this.screen.render()
   }
 
