@@ -27,7 +27,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 8
+          version: 10
 
       - name: Get current version
         id: package-version
@@ -54,7 +54,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.check-published.outputs.published == 'false'
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: Build
         if: steps.check-published.outputs.published == 'false'
