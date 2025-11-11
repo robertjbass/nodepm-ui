@@ -1,6 +1,6 @@
 {
   "name": "nodepm-ui",
-  "version": "0.7.01",
+  "version": "0.7.02",
   "description": "Terminal UI for managing your machine's processes with a focus on Node.js processes",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
