@@ -1,0 +1,42 @@
+{
+  "name": "node-process-manager",
+  "version": "0.7.0",
+  "description": "Terminal UI for managing Node.js processes",
+  "main": "dist/index.js",
+  "bin": {
+    "node-pm": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "keywords": [
+    "node",
+    "process",
+    "manager",
+    "terminal",
+    "tui"
+  ],
+  "author": "Bob Bass",
+  "license": "ISC",
+  "packageManager": "pnpm@10.6.5",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "dotenv": "^17.2.3",
+    "openai": "^6.8.1",
+    "ps-list": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/blessed": "^0.1.25",
+    "@types/node": "^24.10.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
