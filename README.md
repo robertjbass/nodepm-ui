@@ -1,4 +1,7 @@
-# Node Process Manager
+# nodepm
+
+[![npm version](https://badge.fury.io/js/nodepm.svg)](https://www.npmjs.com/package/nodepm)
+[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
 
 A beautiful terminal UI for managing and monitoring Node.js processes. Find and kill rogue processes, analyze resource usage, and get AI-powered insights.
 
@@ -115,4 +118,4 @@ Bob Bass
 
 ## Contributing
 
-Issues and pull requests welcome at [github.com/yourusername/nodepm](https://github.com)
+Issues and pull requests welcome at [github.com/robertjbass/nodepm](https://github.com/robertjbass/nodepm)

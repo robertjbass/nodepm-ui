@@ -3,6 +3,7 @@
   "version": "0.7.0",
   "description": "Terminal UI for managing Node.js processes",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
     "nodepm": "./dist/index.js"
   },
@@ -17,21 +18,36 @@
     "format:check": "prettier --check .",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
+    "test-publish": "npm pack --dry-run",
+    "publish": "pnpm publish",
     "prepare": "npm run build"
   },
   "keywords": [
     "node",
+    "nodejs",
     "process",
-    "manager",
+    "process-manager",
     "terminal",
-    "tui"
+    "tui",
+    "cli",
+    "terminal-ui",
+    "process-monitor",
+    "ai",
+    "openai"
   ],
   "author": "Bob Bass",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/robertjbass/nodepm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/robertjbass/nodepm/issues"
+  },
+  "homepage": "https://github.com/robertjbass/nodepm#readme",
   "packageManager": "pnpm@10.6.5",
   "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=9.0.0"
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "blessed": "^0.1.81",

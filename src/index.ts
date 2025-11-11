@@ -7,50 +7,11 @@ import { promisify } from 'util'
 import OpenAI from 'openai'
 import * as fs from 'fs'
 import * as path from 'path'
-import * as os from 'os'
 import { marked } from 'marked'
 import { markedTerminal } from 'marked-terminal'
+import { loadConfig, saveConfig, getConfigPath } from './config'
 
 const execAsync = promisify(exec)
-
-// Config file management
-type Config = {
-  openAiApiKey?: string
-  version?: string
-}
-
-function getConfigPath(): string {
-  const homeDir = os.homedir()
-  const configDir = path.join(homeDir, '.config', 'nodepm')
-  return path.join(configDir, 'config.json')
-}
-
-function ensureConfigDir(): void {
-  const configPath = getConfigPath()
-  const configDir = path.dirname(configPath)
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true })
-  }
-}
-
-function loadConfig(): Config {
-  try {
-    const configPath = getConfigPath()
-    if (fs.existsSync(configPath)) {
-      const content = fs.readFileSync(configPath, 'utf-8')
-      return JSON.parse(content)
-    }
-  } catch {
-    // If config file is corrupted or doesn't exist, return empty config
-  }
-  return {}
-}
-
-function saveConfig(config: Config): void {
-  ensureConfigDir()
-  const configPath = getConfigPath()
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
-}
 
 type ProcessInfo = {
   pid: number
@@ -76,16 +37,13 @@ class NodeProcessManager {
   private modalStack: string[] = []
 
   constructor() {
-    // Initialize OpenAI if API key exists
     this.initializeOpenAI()
 
-    // Suppress blessed terminal capability errors
     const originalConsoleError = console.error
     const originalConsoleLog = console.log
 
     console.error = (...args: any[]) => {
       const message = args.join(' ')
-      // Suppress blessed terminal capability warnings and errors
       if (
         message.includes('Error on xterm') ||
         message.includes('Setulc') ||
@@ -101,7 +59,6 @@ class NodeProcessManager {
 
     console.log = (...args: any[]) => {
       const message = args.join(' ')
-      // Suppress blessed terminal escape sequences
       if (
         message.includes('\\u001b[58') ||
         message.includes('stack = []') ||
@@ -112,15 +69,13 @@ class NodeProcessManager {
       originalConsoleLog.apply(console, args)
     }
 
-    // Create screen
     this.screen = blessed.screen({
       smartCSR: true,
       title: 'Node Process Manager',
       fullUnicode: true,
-      warnings: false, // Disable warnings
+      warnings: false,
     })
 
-    // Create table for process list
     this.table = blessed.listtable({
       top: 0,
       left: 0,
@@ -156,7 +111,6 @@ class NodeProcessManager {
       interactive: true,
     })
 
-    // Create status bar
     this.statusBar = blessed.box({
       bottom: 2,
       left: 0,
@@ -170,7 +124,6 @@ class NodeProcessManager {
       tags: true,
     })
 
-    // Create help bar
     this.helpBar = blessed.box({
       bottom: 0,
       left: 0,
@@ -191,7 +144,6 @@ class NodeProcessManager {
     this.screen.append(this.statusBar)
     this.screen.append(this.helpBar)
 
-    // Add click handler for help bar to quit
     this.helpBar.on('click', () => {
       this.cleanup()
       process.exit(0)
@@ -201,13 +153,11 @@ class NodeProcessManager {
   }
 
   private setupKeyBindings() {
-    // Quit with Ctrl+C or Ctrl+D (always quits immediately)
     this.screen.key(['C-c', 'C-d'], () => {
       this.cleanup()
       process.exit(0)
     })
 
-    // Quit with q or escape (only quits if no modal is open)
     this.screen.key(['q', 'escape'], () => {
       if (this.modalStack.length === 0) {
         this.cleanup()
@@ -215,19 +165,16 @@ class NodeProcessManager {
       }
     })
 
-    // Refresh
     this.screen.key(['r'], async () => {
       await this.refreshProcessList()
     })
 
-    // Kill process (only when no modals are open)
     this.screen.key(['enter', 'k'], () => {
       if (this.modalStack.length === 0) {
         this.killSelectedProcess()
       }
     })
 
-    // Navigation - handle on screen level for better control (only when no modals are open)
     this.screen.key(['up'], () => {
       if (this.modalStack.length === 0) {
         this.table.up(1)
@@ -242,7 +189,6 @@ class NodeProcessManager {
       }
     })
 
-    // Vi-style navigation
     this.screen.key(['j'], () => {
       if (this.modalStack.length === 0) {
         this.table.down(1)
@@ -250,63 +196,53 @@ class NodeProcessManager {
       }
     })
 
-    // Sort by CPU
     this.screen.key(['c'], () => {
       if (this.modalStack.length === 0) {
         this.toggleSort('cpu')
       }
     })
 
-    // Sort by Memory
     this.screen.key(['m'], () => {
       if (this.modalStack.length === 0) {
         this.toggleSort('memory')
       }
     })
 
-    // AI Explain process
     this.screen.key(['?'], () => {
       if (this.modalStack.length === 0) {
         this.explainSelectedProcess()
       }
     })
 
-    // AI Ask custom question
     this.screen.key(['/'], () => {
       if (this.modalStack.length === 0) {
         this.askCustomQuestion()
       }
     })
 
-    // Help modal
     this.screen.key(['h'], () => {
       if (this.modalStack.length === 0) {
         this.showHelpModal()
       }
     })
 
-    // Mouse support for selection (only when no modals are open)
     this.table.on('select', () => {
       if (this.modalStack.length === 0) {
         this.screen.render()
       }
     })
 
-    // Disable table mouse interaction when modals are open
     this.table.on('click', () => {
       if (this.modalStack.length > 0) {
-        // Prevent interaction when modals are open
         return false
       }
     })
   }
 
   private initializeOpenAI() {
-    // Check environment variable first
     const envApiKey = process.env.OPENAI_API_KEY
     const config = loadConfig()
 
-    // If env var exists but not in config, auto-save it
     if (envApiKey && !config.openAiApiKey) {
       config.openAiApiKey = envApiKey
       config.version = '0.7.0'
@@ -317,7 +253,6 @@ class NodeProcessManager {
       }
     }
 
-    // Use env var if available, otherwise use config
     const apiKey = envApiKey || config.openAiApiKey
 
     if (apiKey) {
@@ -330,7 +265,6 @@ class NodeProcessManager {
       const modalId = 'api-key-prompt'
       this.modalStack.push(modalId)
 
-      // Create container box
       const container = blessed.box({
         parent: this.screen,
         top: 'center',
@@ -350,7 +284,6 @@ class NodeProcessManager {
         tags: true,
       })
 
-      // Instructions text
       blessed.text({
         parent: container,
         top: 0,
@@ -362,7 +295,6 @@ class NodeProcessManager {
         tags: true,
       })
 
-      // Create textarea for API key input
       const textarea = blessed.textarea({
         parent: container,
         top: 5,
@@ -383,10 +315,9 @@ class NodeProcessManager {
           },
         },
         inputOnFocus: true,
-        censor: true, // Hide the API key input
+        censor: true,
       })
 
-      // Handle submit
       textarea.key('enter', () => {
         const value = textarea.getValue().trim()
         this.modalStack.pop()
@@ -432,11 +363,9 @@ class NodeProcessManager {
     const modalId = 'help-modal'
     this.modalStack.push(modalId)
 
-    // Hide help bar and status bar while modal is open
     this.helpBar.hide()
     this.statusBar.hide()
 
-    // Create transparent overlay to block all interactions
     const overlay = blessed.box({
       parent: this.screen,
       top: 0,
@@ -451,14 +380,10 @@ class NodeProcessManager {
       mouse: true,
     })
 
-    // Read README.md content
     let readmeContent = ''
     try {
-      // Simple approach: always look in current working directory first
-      // This works for both tsx and compiled versions
       let readmePath = path.join(process.cwd(), 'README.md')
 
-      // If not found, try relative to the script location
       if (!fs.existsSync(readmePath) && typeof __dirname !== 'undefined') {
         readmePath = path.join(__dirname, '..', 'README.md')
         if (!fs.existsSync(readmePath)) {
@@ -472,22 +397,18 @@ class NodeProcessManager {
 
       const markdownContent = fs.readFileSync(readmePath, 'utf-8')
 
-      // Configure marked to use terminal renderer
       marked.use(
         markedTerminal({
           width: 100,
         }) as any
       )
 
-      // Convert markdown to terminal-formatted text
       readmeContent = marked.parse(markdownContent) as string
 
-      // If content is empty or just whitespace, throw error
       if (!readmeContent || readmeContent.trim().length === 0) {
         throw new Error('Markdown rendering produced empty content')
       }
     } catch (error) {
-      // Show the actual error for debugging
       const errorMsg =
         error instanceof Error ? error.message : 'Unknown error'
       readmeContent = `Error loading README: ${errorMsg}\n\nFallback Help:\n\nUse the arrow keys to navigate the process list.\nPress Enter to kill a selected process.\nPress ? to explain a process with AI.\nPress / to ask AI a custom question.\nPress h to open this help.\nPress r to refresh the list.\nPress c to sort by CPU.\nPress m to sort by Memory.\nPress q to quit.`
@@ -541,7 +462,6 @@ class NodeProcessManager {
       this.screen.render()
     }
 
-    // Use screen-level key handler to ensure it's captured
     this.screen.key(['escape', 'q', 'h', 'enter', 'space'], closeHandler)
     helpBox.focus()
 
@@ -575,7 +495,6 @@ class NodeProcessManager {
   }
 
   private async askCustomQuestion() {
-    // Check if API key exists
     if (!this.openaiClient) {
       const apiKey = await this.promptForApiKey()
       if (!apiKey) {
@@ -601,7 +520,6 @@ class NodeProcessManager {
       const modalId = 'question-prompt'
       this.modalStack.push(modalId)
 
-      // Create container box
       const container = blessed.box({
         parent: this.screen,
         top: 'center',
@@ -621,7 +539,6 @@ class NodeProcessManager {
         tags: true,
       })
 
-      // Instructions text
       blessed.text({
         parent: container,
         top: 0,
@@ -633,7 +550,6 @@ class NodeProcessManager {
         tags: true,
       })
 
-      // Create textarea for input
       const textarea = blessed.textarea({
         parent: container,
         top: 7,
@@ -656,7 +572,6 @@ class NodeProcessManager {
         inputOnFocus: true,
       })
 
-      // Handle submit
       textarea.key('enter', () => {
         const value = textarea.getValue().trim()
         this.modalStack.pop()
@@ -665,7 +580,6 @@ class NodeProcessManager {
         resolve(value || null)
       })
 
-      // Handle cancel
       textarea.key(['escape', 'q'], () => {
         this.modalStack.pop()
         container.destroy()
@@ -685,7 +599,6 @@ class NodeProcessManager {
       )
       this.screen.render()
 
-      // Build process list context
       const processListText = this.processes
         .map(
           (p, index) =>
@@ -710,15 +623,12 @@ Please provide a helpful, concise answer based on the process list above. If ide
       const answer =
         completion.choices[0]?.message?.content || 'No answer available.'
 
-      // Show answer in a box
       const modalId = 'ai-answer'
       this.modalStack.push(modalId)
 
-      // Hide help bar and status bar while modal is open
       this.helpBar.hide()
       this.statusBar.hide()
 
-      // Create transparent overlay to block all interactions
       const overlay = blessed.box({
         parent: this.screen,
         top: 0,
@@ -778,7 +688,6 @@ Please provide a helpful, concise answer based on the process list above. If ide
         this.screen.render()
       }
 
-      // Use screen-level key handler to ensure it's captured
       this.screen.key(['escape', 'q', 'enter', 'space'], closeHandler)
       answerBox.focus()
 
@@ -820,15 +729,12 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
       const explanation =
         completion.choices[0]?.message?.content || 'No explanation available.'
 
-      // Show explanation in a box
       const modalId = 'ai-explanation'
       this.modalStack.push(modalId)
 
-      // Hide help bar and status bar while modal is open
       this.helpBar.hide()
       this.statusBar.hide()
 
-      // Create transparent overlay to block all interactions
       const overlay = blessed.box({
         parent: this.screen,
         top: 0,
@@ -890,7 +796,6 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
         this.screen.render()
       }
 
-      // Use screen-level key handler to ensure it's captured
       this.screen.key(['escape', 'q', 'enter', 'space'], closeHandler)
       explainBox.focus()
 
@@ -912,10 +817,8 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
 
   private toggleSort(column: SortColumn) {
     if (this.sortColumn === column) {
-      // Toggle sort order
       this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc'
     } else {
-      // New column, default to descending
       this.sortColumn = column
       this.sortOrder = 'desc'
     }
@@ -952,7 +855,6 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
   private async getNodeProcesses(): Promise<ProcessInfo[]> {
     const allProcesses = await psList()
 
-    // Filter for node processes
     const nodeProcesses = allProcesses.filter(
       (p) =>
         p.name.toLowerCase().includes('node') ||
@@ -990,10 +892,8 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
 
       this.processes = await this.getNodeProcesses()
 
-      // Sort processes
       const sortedProcesses = this.sortProcesses(this.processes)
 
-      // Prepare table data with colors
       const currentPid = process.pid
       const tableData = [
         ['PID', 'Name', 'CPU %', 'Memory', 'Command'],
@@ -1013,7 +913,6 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
                 ? '{yellow-fg}'
                 : '{cyan-fg}'
 
-          // Mark current process
           const isCurrentProcess = p.pid === currentPid
           const nameDisplay = isCurrentProcess
             ? `{white-fg}{bold}${this.truncateString(p.name, 12)} {green-fg}(This Process){/green-fg}{/bold}{/white-fg}`
@@ -1034,7 +933,6 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
       const processCount = this.processes.length
       const totalMemory = this.processes.reduce((sum, p) => sum + p.memory, 0)
 
-      // Build sort indicator
       let sortIndicator = ''
       if (this.sortColumn !== 'none') {
         const arrow = this.sortOrder === 'asc' ? '↑' : '↓'
@@ -1061,7 +959,7 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
   }
 
   private killSelectedProcess() {
-    const selectedRow = (this.table as any).selected - 1 // Subtract header row
+    const selectedRow = (this.table as any).selected - 1
 
     if (selectedRow < 0 || selectedRow >= this.processes.length) {
       this.statusBar.setContent('{yellow-fg}⚠ No process selected{/yellow-fg}')
@@ -1077,7 +975,6 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
     const modalId = 'kill-confirmation'
     this.modalStack.push(modalId)
 
-    // Create confirmation dialog box
     const confirmBox = blessed.box({
       parent: this.screen,
       top: 'center',
@@ -1098,7 +995,6 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
       content: `\nKill process?\n\n{cyan-fg}PID:{/cyan-fg} ${process.pid}\n{cyan-fg}Name:{/cyan-fg} ${process.name}\n{cyan-fg}Command:{/cyan-fg} ${this.truncateString(process.cmd, 40)}\n\n{bold}Press 'y' to confirm, 'n' to cancel{/bold}`,
     })
 
-    // Handle keypresses
     const keyHandler = async (_ch: any, key: any) => {
       if (key.name === 'y') {
         this.modalStack.pop()
@@ -1125,7 +1021,6 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
       }
     }
 
-    // Register key handlers
     this.screen.key(['y', 'n', 'escape', 'q'], keyHandler)
 
     confirmBox.focus()
@@ -1145,7 +1040,6 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
         `{green-fg} Successfully killed process ${process.pid} (${process.name}){/green-fg}`
       )
 
-      // Refresh the list after a short delay
       setTimeout(async () => {
         await this.refreshProcessList()
       }, 500)
@@ -1165,14 +1059,12 @@ Please explain in 2-3 sentences what this process likely does and whether it's n
   }
 
   async start() {
-    // Initial load
     await this.refreshProcessList()
 
     this.screen.render()
   }
 }
 
-// Main execution
 const manager = new NodeProcessManager()
 manager.start().catch((error) => {
   console.error('Failed to start Node Process Manager:', error)
